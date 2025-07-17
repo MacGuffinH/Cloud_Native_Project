@@ -96,6 +96,14 @@ pipeline {
         HARBOR_REGISTRY = 'harbor.edu.cn/cn202006/cloud-native-project'
         // 使用 BUILD_ID 作为版本标签
         VERSION = "${BUILD_ID}"
+          // 添加路径转换函数
+   
+        // 转换 Windows 路径为 Docker 兼容路径
+        DOCKER_WORKSPACE = { 
+            def path = env.WORKSPACE.replace('C:', '').replace('\\', '/')
+            return "/host${path}" 
+        }()
+    
     }
     
     stages {
@@ -113,17 +121,17 @@ pipeline {
             }
         }
         
-        stage('Maven Build') {
+         stage('Maven Build') {
             agent {
                 docker {
                     image 'maven:latest'
-                    // 关键修改：添加路径映射和工作目录
-                    args '''
+                    // 使用转换后的路径
+                    args """
+                        -u root
                         -v $HOME/.m2:/root/.m2
-                        -v ${SOURCE_WORKSPACE}:/workspace
-                        -w /workspace
-                    '''
-                    // 重用节点确保工作空间一致
+                        -v ${env.WORKSPACE}:${env.DOCKER_WORKSPACE}
+                        -w ${env.DOCKER_WORKSPACE}
+                    """
                     reuseNode true
                 }
             }
