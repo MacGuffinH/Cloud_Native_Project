@@ -100,7 +100,7 @@ pipeline {
    
         // 转换 Windows 路径为 Docker 兼容路径
         DOCKER_WORKSPACE = { 
-            def path = env.WORKSPACE.replace('C:', '').replace('\\', '/')
+            def path = env.WORKSPACE.replace('/', '\\')
             return "/host${path}" 
         }()
     
