@@ -3,7 +3,7 @@ pipeline {
     stages {
         stage('Clone to master') {
             agent {
-                label 'main'
+                label 'master'
 
             }
             steps {
