@@ -3,12 +3,12 @@ pipeline {
     stages {
         stage('Clone to master') {
             agent {
-                label 'master'
+                label 'main'
 
             }
             steps {
                 echo "1. Git Clone Stage"
-                git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
+                git url: "https://github.com/MacGuffinH/Cloud_Native_Project"
 
             }
 
