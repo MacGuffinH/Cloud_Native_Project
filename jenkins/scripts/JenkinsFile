@@ -100,7 +100,7 @@ pipeline {
    
         // 转换 Windows 路径为 Docker 兼容路径
         DOCKER_WORKSPACE = { 
-            def path = env.WORKSPACE.replace('/', '\\')
+            def path = env.WORKSPACE.replace('C:', '').replace('\\', '/')
             return "/host${path}" 
         }()
     
@@ -121,17 +121,17 @@ pipeline {
             }
         }
         
-         stage('Maven Build') {
+        stage('Maven Build') {
             agent {
                 docker {
                     image 'maven:latest'
-                    // 使用转换后的路径
-                    args """
-                        -u root
+                    // 关键修改：添加路径映射和工作目录
+                    args '''
                         -v $HOME/.m2:/root/.m2
-                        -v ${env.WORKSPACE}:${env.DOCKER_WORKSPACE}
-                        -w ${env.DOCKER_WORKSPACE}
-                    """
+                        -v ${SOURCE_WORKSPACE}:/workspace
+                        -w /workspace
+                    '''
+                    // 重用节点确保工作空间一致
                     reuseNode true
                 }
             }
