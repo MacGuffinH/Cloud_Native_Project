@@ -13,18 +13,17 @@ pipeline {
             }
 
         }
-        stage('Maven Build') {
-            agent {
-                docker {
-                    image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
-                    args '--name maven-container-${BUILD_NUMBER}'  // 自定义容器名称
-                    reuseNode true  // 保留容器，不自动清理
-                }
-            }
-            steps {
-                sh 'mvn -B clean package -Dmaven.test.skip=true'
-            }
-    }
+    stage('Maven Build') {
+        agent {
+            docker {
+                image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
+                args '-v /root/.m2:/root/.m2 --init' // 添加 --init
+            }   
+        }
+        steps {
+            sh 'mvn -B clean package -Dmaven.test.skip=true'
+        }
+}
         stage('Image Build') {
             agent {
                 label 'built-in'
