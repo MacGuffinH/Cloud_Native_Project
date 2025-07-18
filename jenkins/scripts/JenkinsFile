@@ -1,226 +1,86 @@
-// pipeline {
-//     agent none
-//     stages {
-//         stage('Clone to master') {
-//             agent {
-//                 label 'built-in'
-
-//             }
-//             steps {
-//                 echo "1. Git Clone Stage"
-//                 git url: "https://github.com/MacGuffinH/Cloud_Native_Project"
-
-//             }
-
-//         }
-//         stage('Maven Build') {
-//             agent {
-//                 docker {
-//                     image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
-//                     args '-v /root/.m2:/root/.m2'
-
-//                 }
-
-//             }
-//             steps {
-//                 echo "2. Maven Build Stage"
-//                 sh 'mvn -B clean package -Dmaven.test.skip=true'
-
-//             }
-
-//         }
-//         stage('Image Build') {
-//             agent {
-//                 label 'built-in'
-
-//             }
-//             steps {
-//                 echo "3. Image Build Stage"
-//                 sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} . '
-//                 sh 'docker tag cloud-native-project:${BUILD_ID} harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}'
-
-//             }
-
-//         }
-//         stage('Push') {
-//             agent {
-//                 label 'built-in'
-
-//             }
-//             steps {
-//                 echo "4. Push Docker Image Stage"
-//                 sh "docker login --username=cn202006 harbor.edu.cn -p cn202006"
-//                 sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}"
-
-//             }
-
-//         }
-
-//     }
-
-// }
-
-// node('slave') {
-//     container('jnlp-kubectl') {
-//         stage('connect'){
-//             sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=181250090&password=willy229liu"'
-//         }
-//         stage('Git Clone') {
-//             git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
-
-//         }
-//         stage('YAML') {
-//             echo "5. Change YAML File Stage"
-//             sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./jenkins/scripts/cloud-native-project.yaml'
-
-//         }
-//         stage('Deploy') {
-//             echo "6. Deploy To K8s Stage"
-//             sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006'
-//             sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml'
-
-//         }
-//         stage('RTF Test'){
-//             echo "RTF Test Stage"
-//             sh 'kubectl apply -f ./jenkins/scripts/rtf.yaml -n cn202006'
-
-//         }
-//     }
-
-// }
 pipeline {
     agent none
-    environment {
-        // 添加构建ID作为环境变量
-        BUILD_VERSION = "${BUILD_ID}"
-    }
-    
     stages {
         stage('Clone to master') {
             agent {
                 label 'built-in'
+
             }
             steps {
                 echo "1. Git Clone Stage"
                 git url: "https://github.com/MacGuffinH/Cloud_Native_Project"
-                // 保存工作空间路径
-                script {
-                    env.SOURCE_WORKSPACE = env.WORKSPACE
-                }
+
             }
+
         }
-        
         stage('Maven Build') {
             agent {
                 docker {
                     image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
-                    // 关键修改：添加路径映射、工作目录和停止参数
-                    args '''
-                        -v /root/.m2:/root/.m2
-                        -v ${SOURCE_WORKSPACE}:/app
-                        -w /app
-                        --stop-timeout 30  # 设置30秒停止超时
-                        --rm               # 完成后自动删除容器
-                    '''
-                    reuseNode true
+                    args '--name maven-container-${BUILD_NUMBER}'  // 自定义容器名称
+                    reuseNode true  // 保留容器，不自动清理
                 }
             }
             steps {
-                echo "2. Maven Build Stage"
-                // 使用脚本块确保容器正确退出
-                script {
-                    docker.image('swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest').inside(
-                        "-v /root/.m2:/root/.m2 -v ${env.SOURCE_WORKSPACE}:/app -w /app --stop-timeout 30"
-                    ) {
-                        sh 'mvn -B clean package -Dmaven.test.skip=true'
-                    }
-                }
+                sh 'mvn -B clean package -Dmaven.test.skip=true'
             }
-            post {
-                always {
-                    script {
-                        // 确保清理残留容器
-                        sh '''
-                            docker ps -aq --filter "status=exited" | xargs -r docker rm -f || true
-                            docker ps -aq --filter "status=dead" | xargs -r docker rm -f || true
-                        '''
-                    }
-                }
-            }
-        }
-        
+    }
         stage('Image Build') {
             agent {
                 label 'built-in'
+
             }
             steps {
                 echo "3. Image Build Stage"
-                dir("${env.SOURCE_WORKSPACE}") {
-                    sh "docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_VERSION} ."
-                    sh "docker tag cloud-native-project:${BUILD_VERSION} harbor.edu.cn/cn202006/cloud-native-project:${BUILD_VERSION}"
-                }
+                sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} . '
+                sh 'docker tag cloud-native-project:${BUILD_ID} harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}'
+
             }
+
         }
-        
         stage('Push') {
             agent {
                 label 'built-in'
+
             }
             steps {
                 echo "4. Push Docker Image Stage"
-                // 使用凭据更安全
-                withCredentials([usernamePassword(
-                    credentialsId: 'harbor-creds', 
-                    usernameVariable: 'HARBOR_USER', 
-                    passwordVariable: 'HARBOR_PASS'
-                )]) {
-                    sh "docker login --username=${HARBOR_USER} harbor.edu.cn -p ${HARBOR_PASS}"
-                }
-                sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_VERSION}"
+                sh "docker login --username=cn202006 harbor.edu.cn -p cn202006"
+                sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}"
+
             }
+
         }
+
     }
+
 }
 
 node('slave') {
     container('jnlp-kubectl') {
-        // 添加环境变量确保版本一致
-        environment {
-            BUILD_VERSION = "${env.BUILD_VERSION}"
+        stage('connect'){
+            sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=181250090&password=willy229liu"'
         }
-        
-        stage('connect') {
-            // 使用凭据更安全
-            withCredentials([
-                usernamePassword(
-                    credentialsId: 'campus-net', 
-                    usernameVariable: 'NET_USER', 
-                    passwordVariable: 'NET_PASS'
-                )
-            ]) {
-                sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=${NET_USER}&password=${NET_PASS}"'
-            }
-        }
-        
         stage('Git Clone') {
             git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
+
         }
-        
         stage('YAML') {
             echo "5. Change YAML File Stage"
-            // 使用环境变量中的版本号
-            sh "sed -i 's#{VERSION}#${BUILD_VERSION}#g' ./jenkins/scripts/cloud-native-project.yaml"
+            sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./jenkins/scripts/cloud-native-project.yaml'
+
         }
-        
         stage('Deploy') {
             echo "6. Deploy To K8s Stage"
             sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006'
             sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml'
+
         }
-        
-        stage('RTF Test') {
+        stage('RTF Test'){
             echo "RTF Test Stage"
             sh 'kubectl apply -f ./jenkins/scripts/rtf.yaml -n cn202006'
+
         }
     }
+
 }
