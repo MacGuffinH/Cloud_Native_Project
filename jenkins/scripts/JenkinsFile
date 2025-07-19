@@ -25,18 +25,18 @@ pipeline {
         }
 }
         stage('Image Build') {
-            agent {
-                label 'built-in'
-
-            }
-            steps {
-                echo "3. Image Build Stage"
-                sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} . '
-                sh 'docker tag cloud-native-project:${BUILD_ID} harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}'
-
-            }
-
-        }
+  agent { label 'built-in' }
+  steps {
+    withCredentials([usernamePassword(
+      credentialsId: 'docker-hub-cred', // 提前在Jenkins中配置的凭证
+      usernameVariable: 'DOCKER_USER',
+      passwordVariable: 'DOCKER_PASS'
+    )]) {
+      sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+      sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} .'
+    }
+  }
+}
         stage('Push') {
             agent {
                 label 'built-in'
