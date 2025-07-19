@@ -201,7 +201,7 @@ stage('Push') {
              steps {
                  echo "4. Push Docker Image Stage"
                  sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345"
-                 sh "docker push 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
+                 sh "docker push cloud-native-project:${BUILD_ID}"
 
              }
 
