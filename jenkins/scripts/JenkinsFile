@@ -202,7 +202,7 @@ pipeline {
                     echo "4. Push Docker Image Stage"
                     
                     // 1. 登录 Harbor
-                    sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345
+                    sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345"
                     
                     // 2. 重新打标签
                     sh "docker tag cloud-native-project:${BUILD_ID} 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
