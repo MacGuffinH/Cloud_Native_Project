@@ -193,16 +193,19 @@ pipeline {
             }
         }
         
-        stage('Push to Harbor') {
-            agent { label 'built-in' }
-            steps {
-                sh """
-                    # 无需登录直接推送到Harbor（假设配置了匿名访问）
-                    docker tag cloud-native-project:${BUILD_ID} harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}
-                    docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}
-                """
-            }
-        }
+stage('Push') {
+            agent {
+                 label 'built-in'
+
+             }
+             steps {
+                 echo "4. Push Docker Image Stage"
+                 sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345"
+                 sh "docker push 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
+
+//             }
+
+//         }
         
         stage('Deploy to K8s') {
             agent { label 'slave' }
