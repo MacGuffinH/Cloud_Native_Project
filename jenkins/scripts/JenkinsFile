@@ -172,11 +172,10 @@ pipeline {
             }
         }
         
-        stage('Image Build') {
+ stage('Image Build') {
             agent { label 'built-in' }
             steps {
                 script {
-                    // 使用华为云托管的公共OpenJDK基础镜像
                     def dockerfileContent = """
                         FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/openjdk:11-jre-slim
                         ARG jar_name
@@ -189,23 +188,33 @@ pipeline {
                         docker build --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar \
                             -t cloud-native-project:${BUILD_ID} .
                     '''
+                    
+                    // 添加镜像列表输出便于调试
+                    sh 'docker images'
                 }
             }
         }
         
-stage('Push') {
-            agent {
-                 label 'built-in'
-
-             }
-             steps {
-                 echo "4. Push Docker Image Stage"
-                 sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345"
-                 sh "docker push cloud-native-project:${BUILD_ID}"
-
-             }
-
-         }
+ stage('Push') {
+            agent { label 'built-in' }
+            steps {
+                script {
+                    echo "4. Push Docker Image Stage"
+                    
+                    // 1. 登录 Harbor
+                    sh "docker login --username=${HARBOR_USER} ${HARBOR_URL} -p ${HARBOR_PASSWORD}"
+                    
+                    // 2. 重新打标签
+                    sh "docker tag cloud-native-project:${BUILD_ID} ${HARBOR_URL}/${HARBOR_PROJECT}:${BUILD_ID}"
+                    
+                    // 3. 推送镜像
+                    sh "docker push ${HARBOR_URL}/${HARBOR_PROJECT}:${BUILD_ID}"
+                    
+                    // 添加推送后验证
+                    sh "curl -u ${HARBOR_USER}:${HARBOR_PASSWORD} http://${HARBOR_URL}/api/v2.0/projects/${HARBOR_PROJECT}/repositories"
+                }
+            }
+        }
         
         stage('Deploy to K8s') {
             agent { label 'slave' }
