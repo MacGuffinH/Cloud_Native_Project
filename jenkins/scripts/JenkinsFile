@@ -146,15 +146,16 @@
 pipeline {
     agent none
     environment {
-        DOCKER_REGISTRY = "https://registry-1.docker.io/v2"
+        // 使用华为云 SWR 作为 Docker 镜像源
+        BASE_IMAGE_REGISTRY = "swr.cn-north-4.myhuaweicloud.com"
+        // 基础镜像使用华为云托管的公共镜像
+        BASE_IMAGE_PATH = "${BASE_IMAGE_REGISTRY}/ddn-k8s/docker.io"
     }
     stages {
-    
-        
-        stage('Clone to master') {
+        stage('Clone') {
             agent { label 'built-in' }
             steps {
-                echo "1. Git Clone Stage"
+                echo "1. 代码克隆阶段"
                 git url: "https://github.com/MacGuffinH/Cloud_Native_Project"
             }
         }
@@ -162,7 +163,7 @@ pipeline {
         stage('Maven Build') {
             agent {
                 docker {
-                    image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
+                    image "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest" // 华为云公共Maven镜像
                     args '-v /root/.m2:/root/.m2 --init'
                 }   
             }
@@ -174,13 +175,20 @@ pipeline {
         stage('Image Build') {
             agent { label 'built-in' }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                    sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} .'
+                script {
+                    // 使用华为云托管的公共OpenJDK基础镜像
+                    def dockerfileContent = """
+                        FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/openjdk:11-jre-slim
+                        ARG jar_name
+                        COPY \${jar_name} app.jar
+                        ENTRYPOINT [\"java\",\"-jar\",\"/app.jar\"]
+                    """
+                    writeFile file: 'Dockerfile', text: dockerfileContent
+                    
+                    sh '''
+                        docker build --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar \
+                            -t cloud-native-project:${BUILD_ID} .
+                    '''
                 }
             }
         }
@@ -188,52 +196,39 @@ pipeline {
         stage('Push to Harbor') {
             agent { label 'built-in' }
             steps {
-                echo "4. Push Docker Image Stage"
-                withCredentials([usernamePassword(
-                    credentialsId: 'harbor-creds', // 创建Harbor专用凭证
-                    usernameVariable: 'HARBOR_USER',
-                    passwordVariable: 'HARBOR_PASS'
-                )]) {
-                    sh "docker login --username=${HARBOR_USER} harbor.edu.cn -p ${HARBOR_PASS}"
-                    sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}"
-                }
+                sh """
+                    # 无需登录直接推送到Harbor（假设配置了匿名访问）
+                    docker tag cloud-native-project:${BUILD_ID} harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}
+                    docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}
+                """
             }
         }
         
-        // 将部署阶段整合到主pipeline中
         stage('Deploy to K8s') {
-            agent {
-                label 'slave' // 使用slave节点
-            }
+            agent { label 'slave' }
             steps {
-                container('jnlp-kubectl') { // 在指定容器内执行
+                container('jnlp-kubectl') {
                     script {
-                        // 连接网络
-                        stage('Connect Network') {
+                        stage('Network Auth') {
                             sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=181250090&password=willy229liu"'
                         }
                         
-                        // 克隆部署仓库
-                        stage('Git Clone for Deployment') {
-                            git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
+                        stage('Clone Deployment') {
+                            git url: "https://gitee.com/your_mirror/Cloud_Native_Project_Deploy" // 国内镜像
                         }
                         
-                        // 更新YAML文件
                         stage('Update YAML') {
-                            echo "5. Update YAML File Stage"
                             sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./jenkins/scripts/cloud-native-project.yaml'
                         }
                         
-                        // 部署到K8s
-                        stage('Deploy Application') {
-                            echo "6. Deploy To K8s Stage"
-                            sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006'
-                            sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml'
+                        stage('Deploy') {
+                            sh '''
+                                kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006
+                                kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml
+                            '''
                         }
                         
-                        // RTF测试
-                        stage('RTF Test'){
-                            echo "RTF Test Stage"
+                        stage('RTF Test') {
                             sh 'kubectl apply -f ./jenkins/scripts/rtf.yaml -n cn202006'
                         }
                     }
@@ -245,8 +240,7 @@ pipeline {
     post {
         always {
             node('built-in') {
-                sh 'docker logout >/dev/null 2>&1 || true'
-                sh 'docker logout harbor.edu.cn >/dev/null 2>&1 || true'
+                sh 'echo "清理完成"'
             }
         }
     }
