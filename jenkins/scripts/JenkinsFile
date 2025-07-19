@@ -28,7 +28,7 @@ pipeline {
   agent { label 'built-in' }
   steps {
     withCredentials([usernamePassword(
-      credentialsId: 'docker-hub-cred', // 提前在Jenkins中配置的凭证
+      credentialsId: 'dockerhub-creds', // 提前在Jenkins中配置的凭证
       usernameVariable: 'DOCKER_USER',
       passwordVariable: 'DOCKER_PASS'
     )]) {
