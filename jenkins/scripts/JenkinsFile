@@ -214,7 +214,7 @@ pipeline {
         }
         
         stage('Deploy to K8s') {
-            agent { label 'slave' }
+            agent { label 'built-in' }
             steps {
                 container('jnlp-kubectl') {
                     script{ 
