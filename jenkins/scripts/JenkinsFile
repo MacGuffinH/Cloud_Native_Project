@@ -32,7 +32,7 @@ pipeline {
       usernameVariable: 'DOCKER_USER',
       passwordVariable: 'DOCKER_PASS'
     )]) {
-      sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+      sh 'echo w26901463 | docker login -u "$DOCKER_USER" --password-stdin'
       sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} .'
     }
   }
