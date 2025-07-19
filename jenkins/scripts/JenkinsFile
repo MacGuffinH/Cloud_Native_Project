@@ -1,6 +1,59 @@
 pipeline {
     agent none
+       environment {
+        // 定义Docker Hub API地址（避免硬编码）
+        DOCKER_REGISTRY = "https://registry-1.docker.io/v2"
+    }
     stages {
+         stage('Validate Docker Credentials') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-hub-cred',  // Jenkins中配置的凭证ID
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    script {
+                        // 方法1：直接使用docker login验证（推荐）
+                        try {
+                            sh '''
+                                echo "尝试登录Docker Hub..."
+                                if echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin >/dev/null 2>&1; then
+                                    echo "[SUCCESS] 凭证验证通过 ✅"
+                                else
+                                    echo "[ERROR] 凭证验证失败 ❌"
+                                    exit 1
+                                fi
+                            '''
+                        } catch (Exception e) {
+                            error "Docker登录失败: ${e.getMessage()}"
+                        }
+
+                        // 方法2：通过Docker API验证（更底层）
+                        sh '''
+                            echo "=== 开始Docker Hub API验证 ==="
+                            AUTH_TOKEN=$(curl -s -H "Content-Type: application/json" \
+                                -X POST \
+                                -d '{"username": "'"$DOCKER_USER"'", "password": "'"$DOCKER_PASS"'"}' \
+                                https://auth.docker.io/token?service=registry.docker.io\&scope=repository:library/ubuntu:pull \
+                                | jq -r .token)
+                                
+                            if [ -z "$AUTH_TOKEN" ]; then
+                                echo "[ERROR] 无法获取认证令牌 ❌"
+                                exit 1
+                            else
+                                echo "[SUCCESS] 成功获取Docker Hub令牌 ✅"
+                                # 测试拉取权限（以ubuntu为例）
+                                curl -s -o /dev/null -w "HTTP状态码: %{http_code}\n" \
+                                    -H "Authorization: Bearer $AUTH_TOKEN" \
+                                    "$DOCKER_REGISTRY/library/ubuntu/manifests/latest"
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
         stage('Clone to master') {
             agent {
                 label 'built-in'
@@ -51,6 +104,11 @@ pipeline {
 
         }
 
+    }
+    post {
+        always {
+            sh 'docker logout >/dev/null 2>&1 || true'  // 清理登录状态
+        }
     }
 
 }
