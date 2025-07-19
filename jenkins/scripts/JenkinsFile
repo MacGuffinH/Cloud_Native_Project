@@ -9,7 +9,7 @@ stage('Validate Docker Credentials') {
     steps {
         withCredentials([
             usernamePassword(
-                credentialsId: 'docker-hub-cred',
+                credentialsId: 'dockerhub-creds',
                 usernameVariable: 'DOCKER_USER',
                 passwordVariable: 'DOCKER_PASS'
             )
@@ -107,7 +107,9 @@ stage('Validate Docker Credentials') {
     }
     post {
         always {
+            node('built-in'){
             sh 'docker logout >/dev/null 2>&1 || true'  // 清理登录状态
+            }
         }
     }
 
