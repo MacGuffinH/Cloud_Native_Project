@@ -146,10 +146,10 @@
 pipeline {
     agent none
     environment {
-        // 使用华为云 SWR 作为 Docker 镜像源
-        BASE_IMAGE_REGISTRY = "swr.cn-north-4.myhuaweicloud.com"
-        // 基础镜像使用华为云托管的公共镜像
-        BASE_IMAGE_PATH = "${BASE_IMAGE_REGISTRY}/ddn-k8s/docker.io"
+        // 添加 Harbor 相关环境变量
+        HARBOR_URL = "172.17.0.1:80"
+        HARBOR_PROJECT = "cloud-native-project" // 项目名称
+    
     }
     stages {
         stage('Clone') {
@@ -205,13 +205,13 @@ pipeline {
                     sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345"
                     
                     // 2. 重新打标签
-                    sh "docker tag cloud-native-project:${BUILD_ID} 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
+                    sh "docker tag cloud-native-project:${BUILD_ID} ${HARBOR_URL}/${HARBOR_PROJECT}/app:${BUILD_ID}"
                     
                     // 3. 推送镜像
-                    sh "docker push 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
+                     sh "docker push ${HARBOR_URL}/${HARBOR_PROJECT}/app:${BUILD_ID}"
                     
                     // 添加推送后验证
-                    sh "curl -u admin:Harbor12345 http://172.0.0.1:80/api/v2.0/projects/cloud-native-project/repositories"
+                    sh "curl -u admin:Harbor12345 http://${HARBOR_URL}/api/v2.0/projects/${HARBOR_PROJECT}/repositories"
                 }
             }
         }
