@@ -209,9 +209,6 @@ pipeline {
                     
                     // 3. 推送镜像
                      sh "docker push ${HARBOR_URL}/${HARBOR_PROJECT}/app:${BUILD_ID}"
-                    
-                    // 添加推送后验证
-                    sh "curl -u admin:Harbor12345 http://${HARBOR_URL}/api/v2.0/projects/${HARBOR_PROJECT}/repositories"
                 }
             }
         }
