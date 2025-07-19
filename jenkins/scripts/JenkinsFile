@@ -208,7 +208,7 @@ pipeline {
                     sh "docker tag cloud-native-project:${BUILD_ID} 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
                     
                     // 3. 推送镜像
-                    sh "docker push 72.17.0.1:80/cloud-native-project:${BUILD_ID}"
+                    sh "docker push 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
                     
                     // 添加推送后验证
                     sh "curl -u admin:Harbor12345 http://172.0.0.1:80/api/v2.0/projects/cloud-native-project/repositories"
