@@ -155,20 +155,14 @@ pipeline {
         stage('Push') {
             agent { label 'built-in' }
             steps {
-                script {
-                    // 添加镜像仓库认证
-                    withCredentials([usernamePassword(
-                        credentialsId: 'harbor-creds', 
-                        usernameVariable: 'HARBOR_USER', 
-                        passwordVariable: 'HARBOR_PASS'
-                    )]) {
+                script  {
                         sh """
-                            docker login -u $HARBOR_USER -p $HARBOR_PASS ${HARBOR_URL}
+                            docker login -u admin -p Harbor12345 ${HARBOR_URL}
                             docker tag ${APP_NAME}:${BUILD_ID} ${HARBOR_URL}/${HARBOR_PROJECT}/${APP_NAME}:${BUILD_ID}
                             docker push ${HARBOR_URL}/${HARBOR_PROJECT}/${APP_NAME}:${BUILD_ID}
                         """
                     }
-                }
+                
             }
         }
     }
