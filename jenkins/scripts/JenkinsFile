@@ -1,145 +1,302 @@
+// pipeline {
+//     agent none
+//        environment {
+//         // 定义Docker Hub API地址（避免硬编码）
+//         DOCKER_REGISTRY = "https://registry-1.docker.io/v2"
+//     }
+//     stages {
+// stage('Validate Docker Credentials') {
+//     steps {
+//         withCredentials([
+//             usernamePassword(
+//                 credentialsId: 'dockerhub-creds',
+//                 usernameVariable: 'DOCKER_USER',
+//                 passwordVariable: 'DOCKER_PASS'
+//             )
+//         ]) {
+//             script {
+//                 // 方法1：直接使用docker login验证（推荐）
+//                 try {
+//                     sh '''
+//                         echo "尝试登录Docker Hub..."
+//                         if echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin >/dev/null 2>&1; then
+//                             echo "[SUCCESS] 凭证验证通过 ✅"
+//                         else
+//                             echo "[ERROR] 凭证验证失败 ❌"
+//                             exit 1
+//                         fi
+//                     '''
+//                 } catch (Exception e) {
+//                     error "Docker登录失败: ${e.getMessage()}"
+//                 }
+
+//                 // 方法2：通过Docker API验证（修复转义问题）
+//                 sh '''
+//                     echo "=== 开始Docker Hub API验证 ==="
+//                     AUTH_TOKEN=$(curl -s -H "Content-Type: application/json" \
+//                         -X POST \
+//                         -d '{"username": "'"$DOCKER_USER"'", "password": "'"$DOCKER_PASS"'"}' \
+//                         "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/ubuntu:pull" \
+//                         | jq -r .token)
+                        
+//                     if [ -z "$AUTH_TOKEN" ]; then
+//                         echo "[ERROR] 无法获取认证令牌 ❌"
+//                         exit 1
+//                     else
+//                         echo "[SUCCESS] 成功获取Docker Hub令牌 ✅"
+//                         # 测试拉取权限（以ubuntu为例）
+//                         curl -s -o /dev/null -w "HTTP状态码: %{http_code}\n" \
+//                             -H "Authorization: Bearer $AUTH_TOKEN" \
+//                             "https://registry-1.docker.io/v2/library/ubuntu/manifests/latest"
+//                     fi
+//                 '''
+//             }
+//         }
+//     }
+// }
+//         stage('Clone to master') {
+//             agent {
+//                 label 'built-in'
+
+//             }
+//             steps {
+//                 echo "1. Git Clone Stage"
+//                 git url: "https://github.com/MacGuffinH/Cloud_Native_Project"
+
+//             }
+
+//         }
+//     stage('Maven Build') {
+//         agent {
+//             docker {
+//                 image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
+//                 args '-v /root/.m2:/root/.m2 --init' // 添加 --init
+//             }   
+//         }
+//         steps {
+//             sh 'mvn -B clean package -Dmaven.test.skip=true'
+//         }
+// }
+//         stage('Image Build') {
+//   agent { label 'built-in' }
+//   steps {
+//     withCredentials([usernamePassword(
+//       credentialsId: 'dockerhub-creds', // 提前在Jenkins中配置的凭证
+//       usernameVariable: 'DOCKER_USER',
+//       passwordVariable: 'DOCKER_PASS'
+//     )]) {
+//       sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+//       sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} .'
+//     }
+//   }
+// }
+//         stage('Push') {
+//             agent {
+//                 label 'built-in'
+
+//             }
+//             steps {
+//                 echo "4. Push Docker Image Stage"
+//                 sh "docker login --username=cn202006 harbor.edu.cn -p cn202006"
+//                 sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}"
+
+//             }
+
+//         }
+
+//     }
+//     post {
+//         always {
+//             node('built-in'){
+//             sh 'docker logout >/dev/null 2>&1 || true'  // 清理登录状态
+//             }
+//         }
+//     }
+
+// }
+
+// node('slave') {
+//     container('jnlp-kubectl') {
+//         stage('connect'){
+//             sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=181250090&password=willy229liu"'
+//         }
+//         stage('Git Clone') {
+//             git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
+
+//         }
+//         stage('YAML') {
+//             echo "5. Change YAML File Stage"
+//             sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./jenkins/scripts/cloud-native-project.yaml'
+
+//         }
+//         stage('Deploy') {
+//             echo "6. Deploy To K8s Stage"
+//             sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006'
+//             sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml'
+
+//         }
+//         stage('RTF Test'){
+//             echo "RTF Test Stage"
+//             sh 'kubectl apply -f ./jenkins/scripts/rtf.yaml -n cn202006'
+
+//         }
+//     }
+
+// }
 pipeline {
     agent none
-       environment {
-        // 定义Docker Hub API地址（避免硬编码）
+    environment {
         DOCKER_REGISTRY = "https://registry-1.docker.io/v2"
     }
     stages {
-stage('Validate Docker Credentials') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'dockerhub-creds',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )
-        ]) {
-            script {
-                // 方法1：直接使用docker login验证（推荐）
-                try {
-                    sh '''
-                        echo "尝试登录Docker Hub..."
-                        if echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin >/dev/null 2>&1; then
-                            echo "[SUCCESS] 凭证验证通过 ✅"
-                        else
-                            echo "[ERROR] 凭证验证失败 ❌"
-                            exit 1
-                        fi
-                    '''
-                } catch (Exception e) {
-                    error "Docker登录失败: ${e.getMessage()}"
-                }
+        stage('Validate Docker Credentials') {
+            agent { label 'built-in' } // 添加agent
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    script {
+                        // 方法1：直接使用docker login验证
+                        try {
+                            sh '''
+                                echo "尝试登录Docker Hub..."
+                                if echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin >/dev/null 2>&1; then
+                                    echo "[SUCCESS] 凭证验证通过 ✅"
+                                else
+                                    echo "[ERROR] 凭证验证失败 ❌"
+                                    exit 1
+                                fi
+                            '''
+                        } catch (Exception e) {
+                            error "Docker登录失败: ${e.getMessage()}"
+                        }
 
-                // 方法2：通过Docker API验证（修复转义问题）
-                sh '''
-                    echo "=== 开始Docker Hub API验证 ==="
-                    AUTH_TOKEN=$(curl -s -H "Content-Type: application/json" \
-                        -X POST \
-                        -d '{"username": "'"$DOCKER_USER"'", "password": "'"$DOCKER_PASS"'"}' \
-                        "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/ubuntu:pull" \
-                        | jq -r .token)
-                        
-                    if [ -z "$AUTH_TOKEN" ]; then
-                        echo "[ERROR] 无法获取认证令牌 ❌"
-                        exit 1
-                    else
-                        echo "[SUCCESS] 成功获取Docker Hub令牌 ✅"
-                        # 测试拉取权限（以ubuntu为例）
-                        curl -s -o /dev/null -w "HTTP状态码: %{http_code}\n" \
-                            -H "Authorization: Bearer $AUTH_TOKEN" \
-                            "https://registry-1.docker.io/v2/library/ubuntu/manifests/latest"
-                    fi
-                '''
+                        // 方法2：通过Docker API验证
+                        sh '''
+                            echo "=== 开始Docker Hub API验证 ==="
+                            AUTH_TOKEN=$(curl -s -H "Content-Type: application/json" \
+                                -X POST \
+                                -d '{"username": "'"$DOCKER_USER"'", "password": "'"$DOCKER_PASS"'"}' \
+                                "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/ubuntu:pull" \
+                                | jq -r .token)
+                                
+                            if [ -z "$AUTH_TOKEN" ]; then
+                                echo "[ERROR] 无法获取认证令牌 ❌"
+                                exit 1
+                            else
+                                echo "[SUCCESS] 成功获取Docker Hub令牌 ✅"
+                                # 测试拉取权限（以ubuntu为例）
+                                curl -s -o /dev/null -w "HTTP状态码: %{http_code}\n" \
+                                    -H "Authorization: Bearer $AUTH_TOKEN" \
+                                    "https://registry-1.docker.io/v2/library/ubuntu/manifests/latest"
+                            fi
+                        '''
+                    }
+                }
             }
         }
-    }
-}
+        
         stage('Clone to master') {
-            agent {
-                label 'built-in'
-
-            }
+            agent { label 'built-in' }
             steps {
                 echo "1. Git Clone Stage"
                 git url: "https://github.com/MacGuffinH/Cloud_Native_Project"
-
             }
-
         }
-    stage('Maven Build') {
-        agent {
-            docker {
-                image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
-                args '-v /root/.m2:/root/.m2 --init' // 添加 --init
-            }   
-        }
-        steps {
-            sh 'mvn -B clean package -Dmaven.test.skip=true'
-        }
-}
-        stage('Image Build') {
-  agent { label 'built-in' }
-  steps {
-    withCredentials([usernamePassword(
-      credentialsId: 'dockerhub-creds', // 提前在Jenkins中配置的凭证
-      usernameVariable: 'DOCKER_USER',
-      passwordVariable: 'DOCKER_PASS'
-    )]) {
-      sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-      sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} .'
-    }
-  }
-}
-        stage('Push') {
+        
+        stage('Maven Build') {
             agent {
-                label 'built-in'
-
+                docker {
+                    image 'swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/maven:latest'
+                    args '-v /root/.m2:/root/.m2 --init'
+                }   
             }
             steps {
-                echo "4. Push Docker Image Stage"
-                sh "docker login --username=cn202006 harbor.edu.cn -p cn202006"
-                sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}"
-
+                sh 'mvn -B clean package -Dmaven.test.skip=true'
             }
-
         }
-
+        
+        stage('Image Build') {
+            agent { label 'built-in' }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    sh 'docker build -f Dockerfile --build-arg jar_name=target/cloud-native-project-0.0.1-SNAPSHOT.jar -t cloud-native-project:${BUILD_ID} .'
+                }
+            }
+        }
+        
+        stage('Push to Harbor') {
+            agent { label 'built-in' }
+            steps {
+                echo "4. Push Docker Image Stage"
+                withCredentials([usernamePassword(
+                    credentialsId: 'harbor-creds', // 创建Harbor专用凭证
+                    usernameVariable: 'HARBOR_USER',
+                    passwordVariable: 'HARBOR_PASS'
+                )]) {
+                    sh "docker login --username=${HARBOR_USER} harbor.edu.cn -p ${HARBOR_PASS}"
+                    sh "docker push harbor.edu.cn/cn202006/cloud-native-project:${BUILD_ID}"
+                }
+            }
+        }
+        
+        // 将部署阶段整合到主pipeline中
+        stage('Deploy to K8s') {
+            agent {
+                label 'slave' // 使用slave节点
+            }
+            steps {
+                container('jnlp-kubectl') { // 在指定容器内执行
+                    script {
+                        // 连接网络
+                        stage('Connect Network') {
+                            sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=181250090&password=willy229liu"'
+                        }
+                        
+                        // 克隆部署仓库
+                        stage('Git Clone for Deployment') {
+                            git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
+                        }
+                        
+                        // 更新YAML文件
+                        stage('Update YAML') {
+                            echo "5. Update YAML File Stage"
+                            sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./jenkins/scripts/cloud-native-project.yaml'
+                        }
+                        
+                        // 部署到K8s
+                        stage('Deploy Application') {
+                            echo "6. Deploy To K8s Stage"
+                            sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006'
+                            sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml'
+                        }
+                        
+                        // RTF测试
+                        stage('RTF Test'){
+                            echo "RTF Test Stage"
+                            sh 'kubectl apply -f ./jenkins/scripts/rtf.yaml -n cn202006'
+                        }
+                    }
+                }
+            }
+        }
     }
+    
     post {
         always {
-            node('built-in'){
-            sh 'docker logout >/dev/null 2>&1 || true'  // 清理登录状态
+            node('built-in') {
+                sh 'docker logout >/dev/null 2>&1 || true'
+                sh 'docker logout harbor.edu.cn >/dev/null 2>&1 || true'
             }
         }
     }
-
-}
-
-node('slave') {
-    container('jnlp-kubectl') {
-        stage('connect'){
-            sh 'curl "http://p.nju.edu.cn/portal_io/login" --data "username=181250090&password=willy229liu"'
-        }
-        stage('Git Clone') {
-            git url: "https://github.com/1Lucifer1/Cloud_Native_Project.git"
-
-        }
-        stage('YAML') {
-            echo "5. Change YAML File Stage"
-            sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./jenkins/scripts/cloud-native-project.yaml'
-
-        }
-        stage('Deploy') {
-            echo "6. Deploy To K8s Stage"
-            sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project.yaml -n cn202006'
-            sh 'kubectl apply -f ./jenkins/scripts/cloud-native-project-serviceMonitor.yaml'
-
-        }
-        stage('RTF Test'){
-            echo "RTF Test Stage"
-            sh 'kubectl apply -f ./jenkins/scripts/rtf.yaml -n cn202006'
-
-        }
-    }
-
 }
