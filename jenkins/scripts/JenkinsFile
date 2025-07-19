@@ -202,16 +202,16 @@ pipeline {
                     echo "4. Push Docker Image Stage"
                     
                     // 1. 登录 Harbor
-                    sh "docker login --username=${HARBOR_USER} ${HARBOR_URL} -p ${HARBOR_PASSWORD}"
+                    sh "docker login --username=admin 172.17.0.1:80 -p Harbor12345
                     
                     // 2. 重新打标签
-                    sh "docker tag cloud-native-project:${BUILD_ID} ${HARBOR_URL}/${HARBOR_PROJECT}:${BUILD_ID}"
+                    sh "docker tag cloud-native-project:${BUILD_ID} 172.17.0.1:80/cloud-native-project:${BUILD_ID}"
                     
                     // 3. 推送镜像
-                    sh "docker push ${HARBOR_URL}/${HARBOR_PROJECT}:${BUILD_ID}"
+                    sh "docker push 72.17.0.1:80/cloud-native-project:${BUILD_ID}"
                     
                     // 添加推送后验证
-                    sh "curl -u ${HARBOR_USER}:${HARBOR_PASSWORD} http://${HARBOR_URL}/api/v2.0/projects/${HARBOR_PROJECT}/repositories"
+                    sh "curl -u admin:Harbor12345 http://172.0.0.1:80/api/v2.0/projects/cloud-native-project/repositories"
                 }
             }
         }
